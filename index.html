@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Framesize — Photo Resizer for the Web</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0c0c0c;
+  --panel:#141414;
+  --panel2:#1c1c1c;
+  --panel3:#222;
+  --border:#272727;
+  --border2:#333;
+  --accent:#c8a642;
+  --accent-h:#d4b655;
+  --accent-dim:rgba(200,166,66,.13);
+  --accent-glow:rgba(200,166,66,.08);
+  --text:#eee;
+  --text-dim:#999;
+  --text-muted:#555;
+  --green:#5d9e6e;
+  --red:#b05555;
+  --r:7px;
+  --r-sm:4px;
+}
+
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5}
+
+/* ── Header ─────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 24px;border-bottom:1px solid var(--border);
+  background:var(--panel);position:sticky;top:0;z-index:10;
+}
+.logo{font-size:1.05rem;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+.logo span{color:var(--accent)}
+.tagline{font-size:.75rem;color:var(--text-muted);letter-spacing:.02em}
+
+/* ── Upload view ─────────────────────────────────────── */
+#uploadView{
+  display:flex;align-items:center;justify-content:center;
+  min-height:calc(100vh - 53px);padding:32px 16px;
+}
+.upload-zone{
+  width:100%;max-width:540px;border:2px dashed var(--border2);
+  border-radius:12px;padding:64px 40px;text-align:center;
+  cursor:pointer;position:relative;background:var(--panel);
+  transition:border-color .2s,background .2s,box-shadow .2s;
+}
+.upload-zone:hover,.upload-zone.drag-active{
+  border-color:var(--accent);background:var(--accent-glow);
+  box-shadow:0 0 32px rgba(200,166,66,.07);
+}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:2.8rem;margin-bottom:16px;opacity:.6}
+.upload-zone h2{font-size:1.1rem;font-weight:600;margin-bottom:8px}
+.upload-zone p{font-size:.82rem;color:var(--text-muted)}
+.upload-zone .hint{margin-top:6px;font-size:.75rem;color:var(--text-muted)}
+
+/* ── Editor layout ───────────────────────────────────── */
+#editorView{height:calc(100vh - 53px);display:flex;flex-direction:column;overflow:hidden}
+
+.editor-layout{
+  display:grid;grid-template-columns:360px 1fr;
+  flex:1;overflow:hidden;
+}
+
+/* ── Controls panel ──────────────────────────────────── */
+.controls-panel{
+  background:var(--panel);border-right:1px solid var(--border);
+  overflow-y:auto;padding:0;display:flex;flex-direction:column;
+}
+.controls-panel::-webkit-scrollbar{width:4px}
+.controls-panel::-webkit-scrollbar-track{background:transparent}
+.controls-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+.ctrl-section{padding:18px 20px;border-bottom:1px solid var(--border)}
+.ctrl-section:last-child{border-bottom:none}
+
+.section-label{
+  font-size:.67rem;font-weight:700;letter-spacing:.12em;
+  color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;
+}
+
+/* Image info */
+.img-info{display:flex;flex-direction:column;gap:6px}
+.img-filename{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.img-badges{display:flex;gap:6px;flex-wrap:wrap}
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:.72rem;background:var(--panel2);border:1px solid var(--border2);
+  border-radius:var(--r-sm);padding:3px 8px;color:var(--text-dim);
+}
+.change-img{
+  margin-top:4px;background:none;border:none;color:var(--text-muted);
+  font-size:.78rem;cursor:pointer;padding:0;text-decoration:underline;
+  text-underline-offset:2px;width:fit-content;
+}
+.change-img:hover{color:var(--text-dim)}
+
+/* Dimensions */
+.dims-row{display:flex;align-items:flex-end;gap:8px}
+.dim-field{display:flex;flex-direction:column;gap:5px;flex:1}
+.dim-field label{font-size:.72rem;color:var(--text-dim);letter-spacing:.04em}
+.dim-input-wrap{position:relative;display:flex;align-items:center}
+.dim-field input{
+  width:100%;background:var(--panel2);border:1px solid var(--border2);
+  border-radius:var(--r);color:var(--text);font-size:.95rem;
+  padding:8px 28px 8px 10px;outline:none;
+  transition:border-color .15s;-moz-appearance:textfield;
+}
+.dim-field input::-webkit-inner-spin-button,
+.dim-field input::-webkit-outer-spin-button{-webkit-appearance:none}
+.dim-field input:focus{border-color:var(--accent)}
+.dim-unit{
+  position:absolute;right:9px;font-size:.7rem;
+  color:var(--text-muted);pointer-events:none;
+}
+
+/* Lock button */
+.lock-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);
+  width:34px;height:38px;flex-shrink:0;cursor:pointer;
+  transition:border-color .15s,background .15s;margin-bottom:0;
+  position:relative;top:-1px;
+}
+.lock-btn:hover{border-color:var(--accent)}
+.lock-btn.locked{border-color:var(--accent);background:var(--accent-dim)}
+.lock-btn svg{width:14px;height:14px}
+
+.dims-readout{
+  margin-top:8px;font-size:.75rem;color:var(--text-muted);
+  display:flex;align-items:center;gap:6px;
+}
+.dims-readout span{color:var(--text-dim);font-weight:600}
+
+/* Pill button group */
+.pill-group{display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--border2)}
+.pill-btn{
+  flex:1;padding:8px 6px;background:var(--panel2);border:none;
+  color:var(--text-muted);font-size:.78rem;font-weight:600;cursor:pointer;
+  transition:color .15s,background .15s;text-align:center;
+  border-right:1px solid var(--border2);
+}
+.pill-btn:last-child{border-right:none}
+.pill-btn:hover{color:var(--text);background:var(--panel3)}
+.pill-btn.active{color:var(--accent);background:var(--accent-dim)}
+
+.mode-desc{margin-top:8px;font-size:.75rem;color:var(--text-muted);line-height:1.5}
+
+/* Crop grid */
+#cropSection{margin-top:14px}
+.crop-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:5px;width:96px;
+}
+.crop-cell{
+  width:28px;height:28px;display:flex;align-items:center;
+  justify-content:center;border-radius:var(--r-sm);cursor:pointer;
+  border:1px solid var(--border2);background:var(--panel2);
+  transition:border-color .12s,background .12s;
+}
+.crop-cell:hover{border-color:var(--accent);background:var(--accent-dim)}
+.crop-cell.active{border-color:var(--accent);background:var(--accent-dim)}
+.crop-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--text-muted);transition:all .12s;
+}
+.crop-cell.active .crop-dot{width:9px;height:9px;background:var(--accent)}
+.crop-hint{margin-top:8px;font-size:.72rem;color:var(--text-muted)}
+
+/* Export */
+.quality-row{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.quality-header{display:flex;justify-content:space-between;align-items:center}
+.quality-header label{font-size:.78rem;color:var(--text-dim)}
+.quality-val{font-size:.78rem;font-weight:700;color:var(--accent)}
+input[type=range]{
+  width:100%;accent-color:var(--accent);cursor:pointer;
+  height:3px;border-radius:2px;
+}
+.btn-apply{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;padding:10px;margin-top:14px;
+  background:transparent;border:1px solid var(--accent);
+  border-radius:var(--r);color:var(--accent);font-size:.85rem;
+  font-weight:700;cursor:pointer;letter-spacing:.03em;
+  transition:background .15s,color .15s;
+}
+.btn-apply:hover{background:var(--accent-dim)}
+.btn-download{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;padding:11px;margin-top:8px;
+  background:var(--accent);border:none;border-radius:var(--r);
+  color:#0c0c0c;font-size:.88rem;font-weight:700;cursor:pointer;
+  letter-spacing:.03em;transition:background .15s,opacity .15s;
+}
+.btn-download:hover{background:var(--accent-h)}
+.btn-download:disabled{opacity:.35;cursor:not-allowed}
+
+/* ── Preview panel ───────────────────────────────────── */
+.preview-panel{
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg);
+}
+.preview-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;border-bottom:1px solid var(--border);
+  background:var(--panel);flex-shrink:0;
+}
+.preview-toolbar .section-label{margin-bottom:0}
+.zoom-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--panel2);border:1px solid var(--border2);
+  border-radius:var(--r-sm);color:var(--text-dim);font-size:.75rem;
+  padding:5px 10px;cursor:pointer;transition:border-color .15s,color .15s;
+}
+.zoom-btn:hover,.zoom-btn.active{border-color:var(--accent);color:var(--accent)}
+
+.previews-wrap{
+  display:flex;gap:12px;padding:16px;flex:1;overflow:auto;
+  align-items:flex-start;
+}
+.preview-box{
+  flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;
+}
+.preview-box-label{
+  font-size:.67rem;font-weight:700;letter-spacing:.12em;
+  color:var(--text-muted);text-transform:uppercase;
+}
+.preview-img-wrap{
+  background:repeating-conic-gradient(#1a1a1a 0% 25%,#222 0% 50%) 0 0/20px 20px;
+  border-radius:var(--r);border:1px solid var(--border);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;
+  min-height:180px;position:relative;
+}
+.preview-img-wrap.scroll-mode{overflow:auto;align-items:flex-start;justify-content:flex-start}
+.preview-img-wrap img,.preview-img-wrap canvas{
+  display:block;border-radius:2px;
+}
+.fit-mode .preview-img-wrap img,
+.fit-mode .preview-img-wrap canvas{
+  max-width:100%;max-height:340px;width:auto;height:auto;object-fit:contain;
+}
+.preview-placeholder{
+  font-size:.8rem;color:var(--text-muted);
+  text-align:center;padding:24px;line-height:1.6;
+}
+.preview-meta{
+  font-size:.75rem;color:var(--text-muted);
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+}
+.meta-dims{color:var(--text-dim);font-weight:600}
+.meta-size{color:var(--text-muted)}
+
+/* Stats bar */
+.stats-bar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 20px;border-top:1px solid var(--border);
+  background:var(--panel);font-size:.78rem;flex-shrink:0;
+}
+.stat-item{display:flex;flex-direction:column;gap:1px}
+.stat-item .lbl{font-size:.67rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em}
+.stat-item .val{color:var(--text-dim);font-weight:600}
+.stats-arrow{color:var(--text-muted);font-size:1rem;margin:0 4px}
+.size-delta{font-weight:700}
+.size-delta.smaller{color:var(--green)}
+.size-delta.larger{color:var(--red)}
+
+/* ── Responsive / Mobile ─────────────────────────────── */
+@media(max-width:767px){
+  #editorView{height:auto;overflow:visible}
+  .editor-layout{grid-template-columns:1fr;height:auto}
+  .controls-panel{overflow-y:visible;border-right:none;border-bottom:1px solid var(--border)}
+  .preview-panel{height:auto}
+  .previews-wrap{flex-direction:column}
+  .preview-box{flex:none;width:100%}
+  .fit-mode .preview-img-wrap img,
+  .fit-mode .preview-img-wrap canvas{max-height:260px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────── -->
+<header>
+  <div>
+    <div class="logo"><span>Frame</span>size</div>
+    <div class="tagline">Professional photo resizer for the web</div>
+  </div>
+</header>
+
+<!-- ── Upload View ────────────────────────────────────── -->
+<div id="uploadView">
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*"/>
+    <div class="upload-icon">⬆</div>
+    <h2>Drop your photo here</h2>
+    <p>or click to browse</p>
+    <p class="hint">JPG, PNG, WebP, TIFF, and more</p>
+  </div>
+</div>
+
+<!-- ── Editor View ────────────────────────────────────── -->
+<div id="editorView" hidden>
+  <div class="editor-layout">
+
+    <!-- Controls -->
+    <aside class="controls-panel">
+
+      <!-- Image info -->
+      <div class="ctrl-section">
+        <div class="section-label">Source Image</div>
+        <div class="img-info">
+          <div class="img-filename" id="imgFilename">—</div>
+          <div class="img-badges">
+            <span class="badge" id="imgDimsBadge">— × —</span>
+            <span class="badge" id="imgSizeBadge">—</span>
+          </div>
+          <button class="change-img" id="changeImgBtn">↩ Change image</button>
+          <input type="file" id="fileInputChange" accept="image/*" style="display:none"/>
+        </div>
+      </div>
+
+      <!-- Dimensions -->
+      <div class="ctrl-section">
+        <div class="section-label">Output Dimensions</div>
+        <div class="dims-row">
+          <div class="dim-field">
+            <label for="widthInput">Width</label>
+            <div class="dim-input-wrap">
+              <input type="number" id="widthInput" min="1" max="20000" placeholder="1920"/>
+              <span class="dim-unit">px</span>
+            </div>
+          </div>
+
+          <button class="lock-btn locked" id="lockBtn" title="Lock aspect ratio" aria-label="Aspect ratio locked">
+            <!-- locked icon -->
+            <svg id="lockIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </button>
+
+          <div class="dim-field">
+            <label for="heightInput">Height</label>
+            <div class="dim-input-wrap">
+              <input type="number" id="heightInput" min="1" max="20000" placeholder="1080"/>
+              <span class="dim-unit">px</span>
+            </div>
+          </div>
+        </div>
+        <div class="dims-readout">Output: <span id="dimsReadout">— × —</span> px</div>
+      </div>
+
+      <!-- Resize mode -->
+      <div class="ctrl-section">
+        <div class="section-label">Resize Mode</div>
+        <div class="pill-group">
+          <button class="pill-btn active" data-mode="fill">Fill &amp; Crop</button>
+          <button class="pill-btn" data-mode="fit">Fit Inside</button>
+          <button class="pill-btn" data-mode="stretch">Stretch</button>
+        </div>
+        <p class="mode-desc" id="modeDesc">Fills exact dimensions. Crops the overflow.</p>
+
+        <!-- Crop anchor (fill mode only) -->
+        <div id="cropSection">
+          <div class="section-label" style="margin-top:14px">Crop Anchor</div>
+          <div class="crop-grid" id="cropGrid"></div>
+          <p class="crop-hint">Choose which part of the photo to keep</p>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div class="ctrl-section">
+        <div class="section-label">Export</div>
+        <div class="pill-group">
+          <button class="pill-btn active" data-fmt="image/jpeg">JPG</button>
+          <button class="pill-btn" data-fmt="image/png">PNG</button>
+          <button class="pill-btn" data-fmt="image/webp">WebP</button>
+        </div>
+
+        <div class="quality-row" id="qualityRow">
+          <div class="quality-header">
+            <label for="qualitySlider">Quality</label>
+            <span class="quality-val" id="qualityVal">90%</span>
+          </div>
+          <input type="range" id="qualitySlider" min="50" max="100" value="90"/>
+        </div>
+
+        <button class="btn-apply" id="applyBtn">↺ Apply Resize</button>
+        <button class="btn-download" id="downloadBtn" disabled>↓ Download JPG</button>
+      </div>
+
+    </aside>
+
+    <!-- Preview -->
+    <section class="preview-panel">
+      <div class="preview-toolbar">
+        <span class="section-label">Preview</span>
+        <button class="zoom-btn active" id="zoomToggle">⤢ Zoom to Fit</button>
+      </div>
+
+      <div class="previews-wrap fit-mode" id="previewsWrap">
+        <!-- Original -->
+        <div class="preview-box">
+          <div class="preview-box-label">Original</div>
+          <div class="preview-img-wrap" id="origWrap">
+            <img id="origImg" alt="Original" style="display:none"/>
+            <p class="preview-placeholder" id="origPlaceholder">No image loaded</p>
+          </div>
+          <div class="preview-meta">
+            <span class="meta-dims" id="origDimsMeta">—</span>
+            <span class="meta-size" id="origSizeMeta">—</span>
+          </div>
+        </div>
+
+        <!-- Output -->
+        <div class="preview-box">
+          <div class="preview-box-label">Output</div>
+          <div class="preview-img-wrap" id="outWrap">
+            <canvas id="previewCanvas" style="display:none"></canvas>
+            <p class="preview-placeholder" id="outPlaceholder">Apply resize to generate preview</p>
+          </div>
+          <div class="preview-meta">
+            <span class="meta-dims" id="outDimsMeta">—</span>
+            <span class="meta-size" id="outSizeMeta">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><span class="lbl">Original</span><span class="val" id="statsOrig">—</span></div>
+        <span class="stats-arrow">→</span>
+        <div class="stat-item"><span class="lbl">Output</span><span class="val" id="statsOut">—</span></div>
+        <span class="size-delta" id="statsDelta"></span>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Hidden work canvas -->
+<canvas id="workCanvas" style="display:none"></canvas>
+
+<script>
+// ── State ─────────────────────────────────────────────
+let origImage   = null;
+let origFile    = null;
+let outputBlob  = null;
+let targetW     = 0;
+let targetH     = 0;
+let aspectLocked = true;
+let resizeMode  = 'fill';
+let cropAnchor  = { x: 0.5, y: 0.5 };
+let outputFormat = 'image/jpeg';
+let quality     = 0.90;
+let zoomToFit   = true;
+let settingDims = false;
+
+// ── DOM refs ──────────────────────────────────────────
+const uploadView    = document.getElementById('uploadView');
+const uploadZone    = document.getElementById('uploadZone');
+const fileInput     = document.getElementById('fileInput');
+const editorView    = document.getElementById('editorView');
+const imgFilename   = document.getElementById('imgFilename');
+const imgDimsBadge  = document.getElementById('imgDimsBadge');
+const imgSizeBadge  = document.getElementById('imgSizeBadge');
+const changeImgBtn  = document.getElementById('changeImgBtn');
+const fileInputChange = document.getElementById('fileInputChange');
+const widthInput    = document.getElementById('widthInput');
+const heightInput   = document.getElementById('heightInput');
+const lockBtn       = document.getElementById('lockBtn');
+const lockIcon      = document.getElementById('lockIcon');
+const dimsReadout   = document.getElementById('dimsReadout');
+const modeBtns      = document.querySelectorAll('.pill-btn[data-mode]');
+const modeDesc      = document.getElementById('modeDesc');
+const cropSection   = document.getElementById('cropSection');
+const cropGrid      = document.getElementById('cropGrid');
+const fmtBtns       = document.querySelectorAll('.pill-btn[data-fmt]');
+const qualityRow    = document.getElementById('qualityRow');
+const qualitySlider = document.getElementById('qualitySlider');
+const qualityVal    = document.getElementById('qualityVal');
+const applyBtn      = document.getElementById('applyBtn');
+const downloadBtn   = document.getElementById('downloadBtn');
+const origImg       = document.getElementById('origImg');
+const origPlaceholder = document.getElementById('origPlaceholder');
+const outWrap       = document.getElementById('outWrap');
+const previewCanvas = document.getElementById('previewCanvas');
+const outPlaceholder = document.getElementById('outPlaceholder');
+const origDimsMeta  = document.getElementById('origDimsMeta');
+const origSizeMeta  = document.getElementById('origSizeMeta');
+const outDimsMeta   = document.getElementById('outDimsMeta');
+const outSizeMeta   = document.getElementById('outSizeMeta');
+const statsOrig     = document.getElementById('statsOrig');
+const statsOut      = document.getElementById('statsOut');
+const statsDelta    = document.getElementById('statsDelta');
+const workCanvas    = document.getElementById('workCanvas');
+const zoomToggle    = document.getElementById('zoomToggle');
+const previewsWrap  = document.getElementById('previewsWrap');
+
+// ── Build crop grid ───────────────────────────────────
+(function buildCropGrid() {
+  const anchors = [
+    [0,0],[0.5,0],[1,0],
+    [0,0.5],[0.5,0.5],[1,0.5],
+    [0,1],[0.5,1],[1,1]
+  ];
+  anchors.forEach(([ax, ay], i) => {
+    const cell = document.createElement('div');
+    cell.className = 'crop-cell' + (ax === 0.5 && ay === 0.5 ? ' active' : '');
+    cell.dataset.ax = ax;
+    cell.dataset.ay = ay;
+    const dot = document.createElement('div');
+    dot.className = 'crop-dot';
+    cell.appendChild(dot);
+    cell.addEventListener('click', () => {
+      document.querySelectorAll('.crop-cell').forEach(c => c.classList.remove('active'));
+      cell.classList.add('active');
+      cropAnchor = { x: ax, y: ay };
+    });
+    cropGrid.appendChild(cell);
+  });
+})();
+
+// ── Upload handling ───────────────────────────────────
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-active'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-active'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-active');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+changeImgBtn.addEventListener('click', () => fileInputChange.click());
+fileInputChange.addEventListener('change', () => { if (fileInputChange.files[0]) loadFile(fileInputChange.files[0]); });
+
+function loadFile(file) {
+  origFile = file;
+  outputBlob = null;
+  downloadBtn.disabled = true;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      origImage = img;
+
+      // Show editor
+      uploadView.style.display = 'none';
+      editorView.hidden = false;
+
+      // Image info
+      imgFilename.textContent = file.name;
+      imgFilename.title = file.name;
+      imgDimsBadge.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+      imgSizeBadge.textContent = fmtBytes(file.size);
+
+      // Set initial target dims
+      targetW = img.naturalWidth;
+      targetH = img.naturalHeight;
+      widthInput.value = targetW;
+      heightInput.value = targetH;
+      updateDimsReadout();
+
+      // Original preview
+      origImg.src = e.target.result;
+      origImg.style.display = 'block';
+      origPlaceholder.style.display = 'none';
+      origDimsMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+      origSizeMeta.textContent = fmtBytes(file.size);
+
+      // Reset output preview
+      previewCanvas.style.display = 'none';
+      outPlaceholder.style.display = '';
+      outDimsMeta.textContent = '—';
+      outSizeMeta.textContent = '—';
+      statsDelta.textContent = '';
+      statsOrig.textContent = `${img.naturalWidth}×${img.naturalHeight}  ${fmtBytes(file.size)}`;
+      statsOut.textContent = '—';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Dimension inputs ──────────────────────────────────
+widthInput.addEventListener('input', () => {
+  if (settingDims) return;
+  const w = parseInt(widthInput.value) || 0;
+  if (w > 0 && aspectLocked && origImage) {
+    settingDims = true;
+    heightInput.value = Math.round(w * origImage.naturalHeight / origImage.naturalWidth);
+    settingDims = false;
+  }
+  updateDimsReadout();
+});
+
+heightInput.addEventListener('input', () => {
+  if (settingDims) return;
+  const h = parseInt(heightInput.value) || 0;
+  if (h > 0 && aspectLocked && origImage) {
+    settingDims = true;
+    widthInput.value = Math.round(h * origImage.naturalWidth / origImage.naturalHeight);
+    settingDims = false;
+  }
+  updateDimsReadout();
+});
+
+function updateDimsReadout() {
+  const w = parseInt(widthInput.value) || 0;
+  const h = parseInt(heightInput.value) || 0;
+  dimsReadout.textContent = w && h ? `${w} × ${h}` : '— × —';
+}
+
+// ── Lock button ───────────────────────────────────────
+lockBtn.addEventListener('click', () => {
+  aspectLocked = !aspectLocked;
+  lockBtn.classList.toggle('locked', aspectLocked);
+  lockBtn.setAttribute('aria-label', aspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked');
+  lockIcon.innerHTML = aspectLocked
+    ? '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+    : '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
+});
+
+// ── Resize mode ───────────────────────────────────────
+const modeDescMap = {
+  fill:    'Fills exact dimensions. Crops the overflow.',
+  fit:     'Shrinks to fit. Adds empty space if needed.',
+  stretch: 'Forces exact size. May distort the image.'
+};
+
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    resizeMode = btn.dataset.mode;
+    modeDesc.textContent = modeDescMap[resizeMode];
+    cropSection.style.display = resizeMode === 'fill' ? '' : 'none';
+  });
+});
+
+// Hide crop section initially if not fill (it's fill by default so it stays visible)
+cropSection.style.display = '';
+
+// ── Format & quality ──────────────────────────────────
+fmtBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    fmtBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    outputFormat = btn.dataset.fmt;
+    qualityRow.style.display = outputFormat === 'image/png' ? 'none' : '';
+    const ext = { 'image/jpeg':'JPG','image/png':'PNG','image/webp':'WebP' }[outputFormat];
+    downloadBtn.textContent = `↓ Download ${ext}`;
+    outputBlob = null;
+    downloadBtn.disabled = true;
+  });
+});
+
+qualitySlider.addEventListener('input', () => {
+  quality = qualitySlider.value / 100;
+  qualityVal.textContent = qualitySlider.value + '%';
+});
+
+// ── Zoom toggle ───────────────────────────────────────
+zoomToggle.addEventListener('click', () => {
+  zoomToFit = !zoomToFit;
+  zoomToggle.classList.toggle('active', zoomToFit);
+  zoomToggle.textContent = zoomToFit ? '⤢ Zoom to Fit' : '⊡ Actual Size';
+  previewsWrap.classList.toggle('fit-mode', zoomToFit);
+});
+
+// ── Apply resize ──────────────────────────────────────
+applyBtn.addEventListener('click', applyResize);
+
+function applyResize() {
+  if (!origImage) return;
+
+  const tw = parseInt(widthInput.value);
+  const th = parseInt(heightInput.value);
+  if (!tw || !th || tw < 1 || th < 1) return;
+
+  targetW = tw;
+  targetH = th;
+
+  applyBtn.textContent = '↺ Rendering…';
+  applyBtn.disabled = true;
+
+  // Defer to allow UI paint
+  setTimeout(() => {
+    try {
+      // Full-res render on workCanvas
+      workCanvas.width  = tw;
+      workCanvas.height = th;
+      const ctx = workCanvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, tw, th);
+
+      if (resizeMode === 'fill') {
+        drawFill(ctx, origImage, tw, th);
+      } else if (resizeMode === 'fit') {
+        drawFit(ctx, origImage, tw, th);
+      } else {
+        drawStretch(ctx, origImage, tw, th);
+      }
+
+      // Get dataURL for size estimation + download
+      const q = outputFormat === 'image/png' ? undefined : quality;
+      const dataURL = workCanvas.toDataURL(outputFormat, q);
+
+      // Render scaled-down preview
+      const MAX_P = 800;
+      const pScale = Math.min(1, MAX_P / Math.max(tw, th));
+      const pw = Math.round(tw * pScale);
+      const ph = Math.round(th * pScale);
+      previewCanvas.width  = pw;
+      previewCanvas.height = ph;
+      const pCtx = previewCanvas.getContext('2d');
+      pCtx.imageSmoothingEnabled = true;
+      pCtx.imageSmoothingQuality = 'high';
+      pCtx.clearRect(0, 0, pw, ph);
+      pCtx.drawImage(workCanvas, 0, 0, pw, ph);
+
+      previewCanvas.style.display = 'block';
+      outPlaceholder.style.display = 'none';
+
+      // File size estimate
+      const b64 = dataURL.split(',')[1];
+      const estBytes = Math.round(b64.length * 0.75);
+
+      // Update meta
+      outDimsMeta.textContent = `${tw} × ${th}`;
+      outSizeMeta.textContent = fmtBytes(estBytes);
+      statsOut.textContent = `${tw}×${th}  ${fmtBytes(estBytes)}`;
+
+      // Delta
+      const diff = estBytes - origFile.size;
+      const pct  = Math.round(Math.abs(diff) / origFile.size * 100);
+      if (diff < 0) {
+        statsDelta.textContent = `↓ ${pct}% smaller`;
+        statsDelta.className = 'size-delta smaller';
+      } else {
+        statsDelta.textContent = `↑ ${pct}% larger`;
+        statsDelta.className = 'size-delta larger';
+      }
+
+      // Blob for download
+      fetch(dataURL).then(r => r.blob()).then(blob => {
+        outputBlob = blob;
+        downloadBtn.disabled = false;
+      });
+
+    } finally {
+      applyBtn.textContent = '↺ Apply Resize';
+      applyBtn.disabled = false;
+    }
+  }, 16);
+}
+
+// ── Canvas drawing helpers ────────────────────────────
+function drawFill(ctx, img, tw, th) {
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  const scale = Math.max(tw / sw, th / sh);
+  const scaledW = sw * scale, scaledH = sh * scale;
+  const offX = (scaledW - tw) * cropAnchor.x;
+  const offY = (scaledH - th) * cropAnchor.y;
+  // source rect in original image coords
+  const sx = offX / scale;
+  const sy = offY / scale;
+  const sW = tw / scale;
+  const sH = th / scale;
+  ctx.drawImage(img, sx, sy, sW, sH, 0, 0, tw, th);
+}
+
+function drawFit(ctx, img, tw, th) {
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  const scale = Math.min(tw / sw, th / sh);
+  const dw = Math.round(sw * scale), dh = Math.round(sh * scale);
+  const dx = Math.round((tw - dw) / 2), dy = Math.round((th - dh) / 2);
+  if (outputFormat === 'image/jpeg') {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, tw, th);
+  }
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+
+function drawStretch(ctx, img, tw, th) {
+  ctx.drawImage(img, 0, 0, tw, th);
+}
+
+// ── Download ──────────────────────────────────────────
+downloadBtn.addEventListener('click', () => {
+  if (!outputBlob) return;
+  const extMap = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp' };
+  const ext  = extMap[outputFormat] || 'jpg';
+  const base = (origFile?.name || 'photo').replace(/\.[^.]+$/, '');
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(outputBlob);
+  a.download = `${base}_${targetW}x${targetH}.${ext}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+});
+
+// ── Utilities ─────────────────────────────────────────
+function fmtBytes(b) {
+  if (b < 1024)        return b + ' B';
+  if (b < 1048576)     return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(2) + ' MB';
+}
+</script>
+</body>
+</html>
