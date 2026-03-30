@@ -6,6 +6,7 @@
 <title>Framesize — Photo Resizer for the Web</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 
 :root{
   --bg:#0c0c0c;
@@ -65,7 +66,7 @@ header{
 
 .editor-layout{
   display:grid;grid-template-columns:360px 1fr;
-  flex:1;overflow:hidden;
+  flex:1;height:100%;overflow:hidden;
 }
 
 /* ── Controls panel ──────────────────────────────────── */
